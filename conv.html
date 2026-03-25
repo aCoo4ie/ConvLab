@@ -1,0 +1,878 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>卷积核实验室</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background: #0a0a0a;
+            color: #e5e5e5;
+        }
+        .mono { font-family: 'JetBrains Mono', monospace; }
+        
+        ::-webkit-scrollbar { width: 8px; height: 8px; }
+        ::-webkit-scrollbar-track { background: #1a1a1a; }
+        ::-webkit-scrollbar-thumb { background: #333; border-radius: 4px; }
+
+        .kernel-input {
+            background: #111;
+            border: 1px solid #444;
+            transition: all 0.2s;
+        }
+        .kernel-input:focus {
+            outline: none;
+            border-color: #3b82f6;
+            box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.3);
+        }
+        .kernel-input.active-kernel {
+            border-color: #10b981;
+            color: #10b981;
+        }
+        
+        .effect-card {
+            transition: all 0.2s;
+            cursor: pointer;
+            border: 1px solid #333;
+        }
+        .effect-card:hover { border-color: #555; }
+        .effect-card.selected {
+            border-color: #3b82f6;
+            background: rgba(59, 130, 246, 0.15);
+        }
+
+        .scan-box {
+            position: absolute;
+            border: 2px solid #3b82f6;
+            box-shadow: 0 0 0 9999px rgba(0,0,0,0.6), inset 0 0 20px rgba(59,130,246,0.5);
+            pointer-events: none;
+            transition: all 0.05s linear;
+            z-index: 20;
+        }
+
+        input[type="range"] {
+            -webkit-appearance: none;
+            height: 6px;
+            background: #333;
+            border-radius: 3px;
+            outline: none;
+        }
+        input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            width: 16px;
+            height: 16px;
+            background: #3b82f6;
+            border-radius: 50%;
+            cursor: pointer;
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
+            transition: all 0.2s;
+        }
+        .btn-primary:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(59, 130, 246, 0.4);
+        }
+        .btn-primary:active {
+            transform: translateY(0);
+        }
+
+        .status-badge {
+            animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+        }
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: .5; }
+        }
+    </style>
+</head>
+<body class="min-h-screen p-4">
+
+    <header class="mb-6 flex flex-wrap items-center justify-between gap-4">
+        <div>
+            <h1 class="text-3xl font-bold bg-gradient-to-r from-blue-400 to-cyan-300 bg-clip-text text-transparent">
+                卷积核可视化实验室
+            </h1>
+            <p class="text-gray-400 text-sm mt-1">修改卷积核 → 点击应用 → 查看效果</p>
+        </div>
+        <div class="flex gap-3">
+            <button onclick="toggleMode()" id="modeBtn" class="px-4 py-2 bg-blue-600 hover:bg-blue-500 rounded-lg text-sm font-medium transition flex items-center gap-2">
+                <span id="modeIcon">▶</span>
+                <span id="modeText">演示模式: 关</span>
+            </button>
+            <button onclick="document.getElementById('fileInput').click()" class="px-4 py-2 bg-gray-800 hover:bg-gray-700 border border-gray-600 rounded-lg text-sm font-medium transition">
+                上传图片
+            </button>
+        </div>
+    </header>
+
+    <input type="file" id="fileInput" accept="image/*" class="hidden">
+
+    <div class="grid grid-cols-1 xl:grid-cols-12 gap-6">
+        
+        <!-- Left Sidebar -->
+        <div class="xl:col-span-3 space-y-4">
+            
+            <!-- Effects -->
+            <div class="bg-gray-900 rounded-xl p-4 border border-gray-800">
+                <h3 class="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">快速预设</h3>
+                <div class="grid grid-cols-2 gap-2 mb-4">
+                    <div class="effect-card selected p-3 rounded-lg bg-gray-800" onclick="applyPreset('custom', this)">
+                        <div class="text-xs text-gray-400">模式</div>
+                        <div class="text-sm font-medium text-white">自定义</div>
+                    </div>
+                    <div class="effect-card p-3 rounded-lg bg-gray-800" onclick="applyPreset('identity', this)">
+                        <div class="text-xs text-gray-400">基础</div>
+                        <div class="text-sm font-medium text-white">恒等</div>
+                    </div>
+                    <div class="effect-card p-3 rounded-lg bg-gray-800" onclick="applyPreset('sobel-x', this)">
+                        <div class="text-xs text-gray-400">边缘</div>
+                        <div class="text-sm font-medium text-white">Sobel X</div>
+                    </div>
+                    <div class="effect-card p-3 rounded-lg bg-gray-800" onclick="applyPreset('sobel-y', this)">
+                        <div class="text-xs text-gray-400">边缘</div>
+                        <div class="text-sm font-medium text-white">Sobel Y</div>
+                    </div>
+                    <div class="effect-card p-3 rounded-lg bg-gray-800" onclick="applyPreset('laplacian', this)">
+                        <div class="text-xs text-gray-400">边缘</div>
+                        <div class="text-sm font-medium text-white">Laplacian</div>
+                    </div>
+                    <div class="effect-card p-3 rounded-lg bg-gray-800" onclick="applyPreset('sharpen', this)">
+                        <div class="text-xs text-gray-400">锐化</div>
+                        <div class="text-sm font-medium text-white">Sharpen</div>
+                    </div>
+                    <div class="effect-card p-3 rounded-lg bg-gray-800" onclick="applyPreset('gaussian', this)">
+                        <div class="text-xs text-gray-400">模糊</div>
+                        <div class="text-sm font-medium text-white">Gaussian</div>
+                    </div>
+                    <div class="effect-card p-3 rounded-lg bg-gray-800" onclick="applyPreset('box-blur', this)">
+                        <div class="text-xs text-gray-400">模糊</div>
+                        <div class="text-sm font-medium text-white">Box Blur</div>
+                    </div>
+                    <div class="effect-card p-3 rounded-lg bg-gray-800" onclick="applyPreset('emboss', this)">
+                        <div class="text-xs text-gray-400">艺术</div>
+                        <div class="text-sm font-medium text-white">Emboss</div>
+                    </div>
+                    <div class="effect-card p-3 rounded-lg bg-gray-800" onclick="applyPreset('outline', this)">
+                        <div class="text-xs text-gray-400">轮廓</div>
+                        <div class="text-sm font-medium text-white">Outline</div>
+                    </div>
+                </div>
+
+                <h3 class="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">其他处理</h3>
+                <div class="grid grid-cols-2 gap-2">
+                    <button onclick="applyDirectFilter('grayscale')" class="p-3 rounded-lg bg-gray-800 hover:bg-gray-700 border border-gray-700 text-left transition">
+                        <div class="text-xs text-gray-400">颜色</div>
+                        <div class="text-sm font-medium text-white">灰度化</div>
+                    </button>
+                    <button onclick="applyDirectFilter('invert')" class="p-3 rounded-lg bg-gray-800 hover:bg-gray-700 border border-gray-700 text-left transition">
+                        <div class="text-xs text-gray-400">颜色</div>
+                        <div class="text-sm font-medium text-white">负片</div>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Kernel Editor -->
+            <div class="bg-gray-900 rounded-xl p-4 border border-gray-800">
+                <div class="flex justify-between items-center mb-3">
+                    <h3 class="font-semibold text-white">卷积核编辑器</h3>
+                    <span id="kernelStatus" class="text-xs px-2 py-1 rounded bg-gray-800 text-gray-400">就绪</span>
+                </div>
+                
+                <div class="flex justify-center mb-4">
+                    <div class="inline-grid grid-cols-3 gap-2 p-3 bg-gray-800 rounded-xl border border-gray-700">
+                        <input type="number" step="0.1" class="kernel-input w-16 h-16 text-center rounded-lg text-cyan-400 font-bold text-lg" id="k0" value="0">
+                        <input type="number" step="0.1" class="kernel-input w-16 h-16 text-center rounded-lg text-cyan-400 font-bold text-lg" id="k1" value="0">
+                        <input type="number" step="0.1" class="kernel-input w-16 h-16 text-center rounded-lg text-cyan-400 font-bold text-lg" id="k2" value="0">
+                        <input type="number" step="0.1" class="kernel-input w-16 h-16 text-center rounded-lg text-cyan-400 font-bold text-lg" id="k3" value="0">
+                        <input type="number" step="0.1" class="kernel-input w-16 h-16 text-center rounded-lg text-cyan-400 font-bold text-lg" id="k4" value="1">
+                        <input type="number" step="0.1" class="kernel-input w-16 h-16 text-center rounded-lg text-cyan-400 font-bold text-lg" id="k5" value="0">
+                        <input type="number" step="0.1" class="kernel-input w-16 h-16 text-center rounded-lg text-cyan-400 font-bold text-lg" id="k6" value="0">
+                        <input type="number" step="0.1" class="kernel-input w-16 h-16 text-center rounded-lg text-cyan-400 font-bold text-lg" id="k7" value="0">
+                        <input type="number" step="0.1" class="kernel-input w-16 h-16 text-center rounded-lg text-cyan-400 font-bold text-lg" id="k8" value="0">
+                    </div>
+                </div>
+
+                <!-- Apply Button -->
+                <button onclick="applyCurrentKernel()" class="btn-primary w-full py-3 rounded-lg font-semibold text-white mb-4 flex items-center justify-center gap-2">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                    应用当前卷积核
+                </button>
+
+                <div class="space-y-3">
+                    <div>
+                        <label class="text-xs text-gray-400 flex justify-between mb-1">
+                            <span>除数 (Divisor)</span>
+                            <span id="divisorDisplay" class="mono text-cyan-400">1.0</span>
+                        </label>
+                        <input type="range" id="divisor" min="0.1" max="25" step="0.1" value="1" class="w-full" oninput="updateDivisor(this.value)">
+                    </div>
+                    <div>
+                        <label class="text-xs text-gray-400 flex justify-between mb-1">
+                            <span>偏移 (Bias)</span>
+                            <span id="biasDisplay" class="mono text-cyan-400">0</span>
+                        </label>
+                        <input type="range" id="bias" min="-128" max="128" step="1" value="0" class="w-full" oninput="updateBias(this.value)">
+                    </div>
+                </div>
+                
+                <div class="mt-4 p-3 bg-gray-800 rounded-lg border border-gray-700 text-xs">
+                    <div class="flex justify-between mb-1">
+                        <span class="text-gray-400">权重和:</span>
+                        <span id="kernelSum" class="mono text-white font-bold">1.0</span>
+                    </div>
+                    <div class="text-gray-500 text-[10px] leading-tight">
+                        提示: 若权重和为0（如边缘检测），除数应为1；若不为0（如模糊），除数通常等于权重和。
+                    </div>
+                </div>
+            </div>
+
+            <!-- Animation Controls -->
+            <div id="animControls" class="bg-gray-900 rounded-xl p-4 border border-gray-800 opacity-50 pointer-events-none transition-opacity">
+                <h3 class="font-semibold mb-3 text-white">演示控制</h3>
+                <div class="space-y-3">
+                    <div>
+                        <label class="text-xs text-gray-400 mb-1 block">处理速度 (像素/帧)</label>
+                        <input type="range" id="animSpeed" min="1" max="100" value="10" class="w-full">
+                    </div>
+                    <div class="flex gap-2">
+                        <button onclick="toggleAnimation()" id="playBtn" class="flex-1 py-2 bg-blue-600 hover:bg-blue-500 rounded text-sm font-medium transition">开始演示</button>
+                        <button onclick="resetAnimation()" class="px-3 py-2 bg-gray-800 hover:bg-gray-700 rounded text-sm border border-gray-600">重置</button>
+                    </div>
+                    <div class="flex justify-between text-xs text-gray-500">
+                        <span>进度: <span id="progress" class="mono text-white">0%</span></span>
+                        <span id="posDisplay" class="mono text-gray-400">0,0</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Main Area -->
+        <div class="xl:col-span-9 space-y-4">
+            
+            <!-- Images -->
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                <div class="bg-gray-900 rounded-xl p-4 border border-gray-800 relative">
+                    <div class="flex justify-between items-center mb-2">
+                        <h3 class="text-sm font-semibold text-gray-300">输入图像</h3>
+                        <span id="sourceInfo" class="text-xs text-gray-500 mono">未加载</span>
+                    </div>
+                    <div class="relative bg-gray-950 rounded-lg overflow-hidden flex items-center justify-center" style="height: 400px;" id="dropZone">
+                        <canvas id="sourceCanvas" class="max-w-full max-h-full object-contain"></canvas>
+                        <div id="scanOverlay" class="absolute inset-0 pointer-events-none hidden">
+                            <div class="scan-box" id="scanBox"></div>
+                        </div>
+                        <div id="placeholder" class="absolute inset-0 flex flex-col items-center justify-center text-gray-600">
+                            <svg class="w-12 h-12 mb-2 opacity-50" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg>
+                            <p class="text-sm">点击上传或拖拽图片</p>
+                            <button onclick="loadExample()" class="mt-2 text-xs text-blue-400 hover:text-blue-300">使用示例图片</button>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="bg-gray-900 rounded-xl p-4 border border-gray-800">
+                    <div class="flex justify-between items-center mb-2">
+                        <h3 class="text-sm font-semibold text-gray-300">处理结果</h3>
+                        <div class="flex gap-2">
+                            <span id="processTime" class="text-xs text-gray-500 mono"></span>
+                            <button onclick="downloadResult()" class="text-xs text-blue-400 hover:text-blue-300">下载</button>
+                        </div>
+                    </div>
+                    <div class="bg-gray-950 rounded-lg overflow-hidden flex items-center justify-center" style="height: 400px;">
+                        <canvas id="resultCanvas" class="max-w-full max-h-full object-contain"></canvas>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Calculation Panel -->
+            <div id="calculationPanel" class="bg-gray-900 rounded-xl p-6 border border-gray-800 hidden">
+                <h3 class="text-lg font-semibold mb-4 flex items-center gap-2 text-white">
+                    <span class="w-2 h-2 bg-green-500 rounded-full status-badge"></span>
+                    实时卷积计算中
+                    <span class="text-xs font-normal text-gray-500 ml-auto">使用当前激活的卷积核</span>
+                </h3>
+                
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                    <!-- Input -->
+                    <div class="bg-gray-800 rounded-lg p-4 border border-gray-700">
+                        <h4 class="text-xs font-semibold text-gray-400 uppercase mb-3 text-center">输入像素块 (3×3)</h4>
+                        <div id="inputPatch" class="grid grid-cols-3 gap-1 max-w-[200px] mx-auto mb-3">
+                            <!-- Generated -->
+                        </div>
+                        <div class="text-center text-xs text-gray-500 mono">当前位置: <span id="calcPos" class="text-white">0,0</span></div>
+                    </div>
+
+                    <!-- Kernel -->
+                    <div class="flex flex-col items-center justify-center">
+                        <div class="text-gray-500 mb-2">×</div>
+                        <div id="kernelDisplay" class="grid grid-cols-3 gap-1 max-w-[200px] w-full mb-4">
+                            <!-- Generated -->
+                        </div>
+                        
+                        <div class="w-full max-w-[240px] space-y-2 text-sm mono bg-gray-800 p-4 rounded-lg border border-gray-700">
+                            <div class="flex justify-between text-gray-400 border-b border-gray-700 pb-2">
+                                <span>卷积和 (R):</span>
+                                <span id="sumR" class="text-red-400 font-bold">0</span>
+                            </div>
+                            <div class="flex justify-between text-gray-400 border-b border-gray-700 pb-2">
+                                <span>卷积和 (G):</span>
+                                <span id="sumG" class="text-green-400 font-bold">0</span>
+                            </div>
+                            <div class="flex justify-between text-gray-400 border-b border-gray-700 pb-2">
+                                <span>卷积和 (B):</span>
+                                <span id="sumB" class="text-blue-400 font-bold">0</span>
+                            </div>
+                            <div class="flex justify-between text-xs text-gray-500 pt-1">
+                                <span>÷ 除数:</span>
+                                <span id="dispDivisor">1</span>
+                            </div>
+                            <div class="flex justify-between text-xs text-gray-500">
+                                <span>+ 偏移:</span>
+                                <span id="dispBias">0</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Output -->
+                    <div class="bg-gray-800 rounded-lg p-4 border border-gray-700 flex flex-col items-center justify-center">
+                        <h4 class="text-xs font-semibold text-gray-400 uppercase mb-3">输出像素</h4>
+                        <div id="outputPixel" class="w-24 h-24 rounded-xl border-2 border-cyan-500 bg-black flex items-center justify-center text-3xl font-bold mono mb-4 shadow-lg shadow-cyan-500/20 relative overflow-hidden">
+                            <span id="outputValue" class="relative z-10 text-white mix-blend-difference">128</span>
+                        </div>
+                        <div class="w-full space-y-2">
+                            <div class="flex justify-between px-3 py-2 bg-gray-900 rounded-lg text-sm">
+                                <span class="text-gray-500">R:</span>
+                                <span id="outR" class="mono text-red-400 font-bold">0</span>
+                            </div>
+                            <div class="flex justify-between px-3 py-2 bg-gray-900 rounded-lg text-sm">
+                                <span class="text-gray-500">G:</span>
+                                <span id="outG" class="mono text-green-400 font-bold">0</span>
+                            </div>
+                            <div class="flex justify-between px-3 py-2 bg-gray-900 rounded-lg text-sm">
+                                <span class="text-gray-500">B:</span>
+                                <span id="outB" class="mono text-blue-400 font-bold">0</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Info -->
+            <div id="infoPanel" class="bg-gray-900 rounded-xl p-4 border border-gray-800 text-sm text-gray-400">
+                欢迎使用卷积核实验室。选择预设或自定义卷积核，点击"应用"查看效果。开启演示模式可观察逐像素计算过程。
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Global State
+        let sourceImage = null;
+        let sourceData = null;
+        let resultData = null;
+        let currentKernel = [0,0,0,0,1,0,0,0,0]; // Active kernel
+        let currentDivisor = 1;
+        let currentBias = 0;
+        let demoMode = false;
+        let isAnimating = false;
+        let animationId = null;
+        let currentPos = {x:0, y:0};
+
+        const presets = {
+            'identity': { kernel: [0,0,0,0,1,0,0,0,0], divisor: 1, bias: 0, desc: '恒等变换：输出等于输入，卷积核中心为1。' },
+            'sobel-x': { kernel: [-1,0,1,-2,0,2,-1,0,1], divisor: 1, bias: 128, desc: 'Sobel X：检测垂直边缘，结果加128偏移显示负值。' },
+            'sobel-y': { kernel: [-1,-2,-1,0,0,0,1,2,1], divisor: 1, bias: 128, desc: 'Sobel Y：检测水平边缘。' },
+            'laplacian': { kernel: [0,-1,0,-1,4,-1,0,-1,0], divisor: 1, bias: 0, desc: 'Laplacian：二阶导数边缘检测。' },
+            'sharpen': { kernel: [0,-1,0,-1,5,-1,0,-1,0], divisor: 1, bias: 0, desc: '锐化：增强边缘，中心权重为5，邻域为-1。' },
+            'gaussian': { kernel: [1,2,1,2,4,2,1,2,1], divisor: 16, bias: 0, desc: '高斯模糊：3×3高斯核，除数为16（权重和）。' },
+            'box-blur': { kernel: [1,1,1,1,1,1,1,1,1], divisor: 9, bias: 0, desc: '均值模糊：所有权重为1，除数为9。' },
+            'emboss': { kernel: [-2,-1,0,-1,1,1,0,1,2], divisor: 1, bias: 128, desc: '浮雕效果：模拟3D光照，加128偏移。' },
+            'outline': { kernel: [-1,-1,-1,-1,8,-1,-1,-1,-1], divisor: 1, bias: 0, desc: '轮廓检测：中心8，周围-1，权重和为0。' },
+            'custom': { kernel: null, divisor: 1, bias: 0, desc: '自定义：请在上方编辑器输入数值并点击应用。' }
+        };
+
+        // Init
+        document.getElementById('fileInput').addEventListener('change', e => {
+            if (e.target.files[0]) loadImage(e.target.files[0]);
+        });
+
+        // Drag & Drop
+        const dropZone = document.getElementById('dropZone');
+        dropZone.addEventListener('click', () => document.getElementById('fileInput').click());
+        dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.style.border = '2px dashed #3b82f6'; });
+        dropZone.addEventListener('dragleave', e => { e.preventDefault(); dropZone.style.border = 'none'; });
+        dropZone.addEventListener('drop', e => {
+            e.preventDefault();
+            dropZone.style.border = 'none';
+            if (e.dataTransfer.files[0]) loadImage(e.dataTransfer.files[0]);
+        });
+
+        function loadImage(file) {
+            const reader = new FileReader();
+            reader.onload = e => {
+                const img = new Image();
+                img.onload = () => {
+                    sourceImage = img;
+                    initCanvases();
+                    document.getElementById('placeholder').style.display = 'none';
+                    document.getElementById('sourceInfo').textContent = `${img.width}×${img.height}`;
+                    document.getElementById('infoPanel').textContent = '图片已加载。点击"应用当前卷积核"开始处理，或开启演示模式观察计算过程。';
+                    
+                    // Auto apply current kernel
+                    applyCurrentKernel();
+                };
+                img.src = e.target.result;
+            };
+            reader.readAsDataURL(file);
+        }
+
+        function loadExample() {
+            const c = document.createElement('canvas');
+            c.width = 300; c.height = 300;
+            const x = c.getContext('2d');
+            
+            // Create gradient test pattern
+            const g = x.createLinearGradient(0,0,300,300);
+            g.addColorStop(0, '#000');
+            g.addColorStop(0.5, '#fff');
+            g.addColorStop(1, '#000');
+            x.fillStyle = g;
+            x.fillRect(0,0,300,300);
+            
+            // Add noise and shapes
+            for(let i=0; i<100; i++) {
+                x.fillStyle = Math.random()>0.5?'#fff':'#000';
+                x.fillRect(Math.random()*300, Math.random()*300, 2, 2);
+            }
+            
+            x.strokeStyle = '#f00';
+            x.lineWidth = 4;
+            x.strokeRect(50,50,200,200);
+            
+            const img = new Image();
+            img.onload = () => {
+                sourceImage = img;
+                initCanvases();
+                document.getElementById('placeholder').style.display = 'none';
+                document.getElementById('sourceInfo').textContent = '300×300 (示例)';
+                applyCurrentKernel();
+            };
+            img.src = c.toDataURL();
+        }
+
+        function initCanvases() {
+            const maxSize = 400;
+            let w = sourceImage.width;
+            let h = sourceImage.height;
+            if (w > maxSize || h > maxSize) {
+                const scale = Math.min(maxSize/w, maxSize/h);
+                w = Math.floor(w*scale);
+                h = Math.floor(h*scale);
+            }
+            
+            const sourceCanvas = document.getElementById('sourceCanvas');
+            const resultCanvas = document.getElementById('resultCanvas');
+            
+            sourceCanvas.width = w; sourceCanvas.height = h;
+            resultCanvas.width = w; resultCanvas.height = h;
+            
+            const sCtx = sourceCanvas.getContext('2d');
+            sCtx.drawImage(sourceImage, 0, 0, w, h);
+            sourceData = sCtx.getImageData(0, 0, w, h);
+            
+            // Init result with black
+            const rCtx = resultCanvas.getContext('2d');
+            rCtx.fillStyle = '#000';
+            rCtx.fillRect(0, 0, w, h);
+            resultData = rCtx.getImageData(0, 0, w, h);
+        }
+
+        // Kernel Management
+        function getInputs() {
+            const vals = [];
+            for(let i=0; i<9; i++) {
+                const v = parseFloat(document.getElementById('k'+i).value);
+                vals.push(isNaN(v) ? 0 : v);
+            }
+            return vals;
+        }
+
+        function setInputs(kernel) {
+            for(let i=0; i<9; i++) {
+                document.getElementById('k'+i).value = kernel[i];
+            }
+            updateKernelSum();
+        }
+
+        function updateKernelSum() {
+            const k = getInputs();
+            const sum = k.reduce((a,b) => a+b, 0);
+            document.getElementById('kernelSum').textContent = sum.toFixed(1);
+            
+            // Visual feedback on inputs
+            k.forEach((val, idx) => {
+                const inp = document.getElementById('k'+idx);
+                if (val !== 0) inp.classList.add('active-kernel');
+                else inp.classList.remove('active-kernel');
+            });
+        }
+
+        // Event listeners for inputs
+        for(let i=0; i<9; i++) {
+            document.getElementById('k'+i).addEventListener('input', updateKernelSum);
+        }
+
+        function updateDivisor(val) {
+            document.getElementById('divisorDisplay').textContent = parseFloat(val).toFixed(1);
+        }
+
+        function updateBias(val) {
+            document.getElementById('biasDisplay').textContent = val;
+        }
+
+        // Apply Button - MAIN FUNCTION
+        function applyCurrentKernel() {
+            if (!sourceData) {
+                alert('请先上传图片');
+                return;
+            }
+            
+            // Read current values
+            currentKernel = getInputs();
+            currentDivisor = parseFloat(document.getElementById('divisor').value) || 1;
+            currentBias = parseFloat(document.getElementById('bias').value) || 0;
+            
+            // Update UI
+            document.getElementById('kernelStatus').textContent = '已应用';
+            document.getElementById('kernelStatus').className = 'text-xs px-2 py-1 rounded bg-green-900 text-green-400 border border-green-700';
+            
+            if (demoMode) {
+                resetAnimation();
+                startAnimation();
+            } else {
+                processFullImage();
+            }
+        }
+
+        function applyPreset(name, element) {
+            // UI update
+            document.querySelectorAll('.effect-card').forEach(c => c.classList.remove('selected'));
+            if (element) element.classList.add('selected');
+            
+            const preset = presets[name];
+            document.getElementById('infoPanel').textContent = preset.desc;
+            
+            // Set values
+            if (preset.kernel) {
+                setInputs(preset.kernel);
+                document.getElementById('divisor').value = preset.divisor;
+                document.getElementById('bias').value = preset.bias;
+                updateDivisor(preset.divisor);
+                updateBias(preset.bias);
+            }
+            
+            // Auto apply if image exists
+            if (sourceData) {
+                setTimeout(() => applyCurrentKernel(), 50); // Small delay for UI update
+            }
+        }
+
+        function applyDirectFilter(type) {
+            if (!sourceData) return;
+            
+            const w = sourceData.width;
+            const h = sourceData.height;
+            const src = sourceData.data;
+            const dst = resultData.data;
+            
+            if (type === 'grayscale') {
+                for(let i=0; i<src.length; i+=4) {
+                    const gray = 0.299*src[i] + 0.587*src[i+1] + 0.114*src[i+2];
+                    dst[i] = dst[i+1] = dst[i+2] = gray;
+                    dst[i+3] = src[i+3];
+                }
+            } else if (type === 'invert') {
+                for(let i=0; i<src.length; i+=4) {
+                    dst[i] = 255-src[i];
+                    dst[i+1] = 255-src[i+1];
+                    dst[i+2] = 255-src[i+2];
+                    dst[i+3] = src[i+3];
+                }
+            }
+            
+            document.getElementById('resultCanvas').getContext('2d').putImageData(resultData, 0, 0);
+            document.getElementById('infoPanel').textContent = type === 'grayscale' ? '已应用灰度转换（非卷积操作）' : '已应用颜色反转（非卷积操作）';
+        }
+
+        // Processing
+        function processFullImage() {
+            if (!sourceData) return;
+            
+            const start = performance.now();
+            const w = sourceData.width;
+            const h = sourceData.height;
+            const src = sourceData.data;
+            const dst = resultData.data;
+            
+            // Convolution with currentKernel
+            for(let y=0; y<h; y++) {
+                for(let x=0; x<w; x++) {
+                    let r=0, g=0, b=0;
+                    
+                    for(let ky=0; ky<3; ky++) {
+                        for(let kx=0; kx<3; kx++) {
+                            const sy = Math.min(h-1, Math.max(0, y+ky-1));
+                            const sx = Math.min(w-1, Math.max(0, x+kx-1));
+                            const idx = (sy*w+sx)*4;
+                            const k = currentKernel[ky*3+kx];
+                            
+                            r += src[idx]*k;
+                            g += src[idx+1]*k;
+                            b += src[idx+2]*k;
+                        }
+                    }
+                    
+                    const idx = (y*w+x)*4;
+                    dst[idx] = Math.min(255, Math.max(0, r/currentDivisor+currentBias));
+                    dst[idx+1] = Math.min(255, Math.max(0, g/currentDivisor+currentBias));
+                    dst[idx+2] = Math.min(255, Math.max(0, b/currentDivisor+currentBias));
+                    dst[idx+3] = src[idx+3];
+                }
+            }
+            
+            document.getElementById('resultCanvas').getContext('2d').putImageData(resultData, 0, 0);
+            const time = (performance.now() - start).toFixed(1);
+            document.getElementById('processTime').textContent = `${time}ms`;
+        }
+
+        // Demo Mode
+        function toggleMode() {
+            demoMode = !demoMode;
+            const btn = document.getElementById('modeBtn');
+            const icon = document.getElementById('modeIcon');
+            const text = document.getElementById('modeText');
+            const controls = document.getElementById('animControls');
+            const panel = document.getElementById('calculationPanel');
+            const overlay = document.getElementById('scanOverlay');
+            
+            if (demoMode) {
+                icon.textContent = '⏹';
+                text.textContent = '演示模式: 开';
+                btn.classList.remove('bg-blue-600');
+                btn.classList.add('bg-red-600');
+                controls.style.opacity = '1';
+                controls.style.pointerEvents = 'auto';
+                panel.classList.remove('hidden');
+                overlay.classList.remove('hidden');
+                
+                if (sourceData) {
+                    // Clear result
+                    const ctx = document.getElementById('resultCanvas').getContext('2d');
+                    ctx.fillStyle = '#000';
+                    ctx.fillRect(0, 0, resultData.width, resultData.height);
+                    resultData = ctx.getImageData(0, 0, resultData.width, resultData.height);
+                    resetAnimation();
+                }
+            } else {
+                icon.textContent = '▶';
+                text.textContent = '演示模式: 关';
+                btn.classList.add('bg-blue-600');
+                btn.classList.remove('bg-red-600');
+                controls.style.opacity = '0.5';
+                controls.style.pointerEvents = 'none';
+                panel.classList.add('hidden');
+                overlay.classList.add('hidden');
+                stopAnimation();
+                if (sourceData) processFullImage();
+            }
+        }
+
+        function resetAnimation() {
+            stopAnimation();
+            currentPos = {x:0, y:0};
+            document.getElementById('progress').textContent = '0%';
+            document.getElementById('posDisplay').textContent = '0,0';
+            
+            if (resultData) {
+                const ctx = document.getElementById('resultCanvas').getContext('2d');
+                ctx.fillStyle = '#000';
+                ctx.fillRect(0, 0, resultData.width, resultData.height);
+                resultData = ctx.getImageData(0, 0, resultData.width, resultData.height);
+            }
+            
+            updateScanBox(0, 0);
+        }
+
+        function toggleAnimation() {
+            if (isAnimating) stopAnimation();
+            else startAnimation();
+        }
+
+        function startAnimation() {
+            if (!sourceData) return;
+            if (currentPos.y >= resultData.height) resetAnimation();
+            
+            isAnimating = true;
+            document.getElementById('playBtn').textContent = '暂停';
+            animate();
+        }
+
+        function stopAnimation() {
+            isAnimating = false;
+            document.getElementById('playBtn').textContent = '继续';
+            if (animationId) cancelAnimationFrame(animationId);
+        }
+
+        function animate() {
+            if (!isAnimating) return;
+            
+            const speed = parseInt(document.getElementById('animSpeed').value);
+            const w = resultData.width;
+            const h = resultData.height;
+            
+            for(let i=0; i<speed; i++) {
+                if (currentPos.y >= h) {
+                    stopAnimation();
+                    document.getElementById('playBtn').textContent = '完成';
+                    return;
+                }
+                
+                processPixel(currentPos.x, currentPos.y);
+                
+                currentPos.x++;
+                if (currentPos.x >= w) {
+                    currentPos.x = 0;
+                    currentPos.y++;
+                }
+            }
+            
+            document.getElementById('progress').textContent = 
+                Math.round((currentPos.y*h + currentPos.x)/(w*h)*100) + '%';
+            document.getElementById('posDisplay').textContent = 
+                `${currentPos.x},${currentPos.y}`;
+            
+            animationId = requestAnimationFrame(animate);
+        }
+
+        function processPixel(x, y) {
+            const w = sourceData.width;
+            const h = sourceData.height;
+            const src = sourceData.data;
+            const dst = resultData.data;
+            
+            updateScanBox(x, y);
+            
+            // Convolution
+            let r=0, g=0, b=0;
+            const patch = [];
+            
+            for(let ky=0; ky<3; ky++) {
+                for(let kx=0; kx<3; kx++) {
+                    const sy = Math.min(h-1, Math.max(0, y+ky-1));
+                    const sx = Math.min(w-1, Math.max(0, x+kx-1));
+                    const idx = (sy*w+sx)*4;
+                    const k = currentKernel[ky*3+kx];
+                    
+                    r += src[idx]*k;
+                    g += src[idx+1]*k;
+                    b += src[idx+2]*k;
+                    
+                    patch.push({
+                        r: src[idx], g: src[idx+1], b: src[idx+2], k: k,
+                        brightness: Math.round(0.299*src[idx] + 0.587*src[idx+1] + 0.114*src[idx+2])
+                    });
+                }
+            }
+            
+            const finalR = Math.min(255, Math.max(0, r/currentDivisor+currentBias));
+            const finalG = Math.min(255, Math.max(0, g/currentDivisor+currentBias));
+            const finalB = Math.min(255, Math.max(0, b/currentDivisor+currentBias));
+            
+            // Write to result
+            const idx = (y*w+x)*4;
+            dst[idx] = finalR;
+            dst[idx+1] = finalG;
+            dst[idx+2] = finalB;
+            dst[idx+3] = src[idx+3];
+            
+            document.getElementById('resultCanvas').getContext('2d').putImageData(resultData, 0, 0);
+            
+            // Update calculation panel
+            updateCalcPanel(x, y, patch, r, g, b, finalR, finalG, finalB);
+        }
+
+        function updateScanBox(x, y) {
+            const box = document.getElementById('scanBox');
+            const canvas = document.getElementById('sourceCanvas');
+            const rect = canvas.getBoundingClientRect();
+            const scaleX = rect.width / canvas.width;
+            const scaleY = rect.height / canvas.height;
+            
+            box.style.left = (x * scaleX) + 'px';
+            box.style.top = (y * scaleY) + 'px';
+            box.style.width = scaleX + 'px';
+            box.style.height = scaleY + 'px';
+        }
+
+        function updateCalcPanel(x, y, patch, sumR, sumG, sumB, outR, outG, outB) {
+            // Input patch
+            const container = document.getElementById('inputPatch');
+            container.innerHTML = '';
+            patch.forEach((p, i) => {
+                const div = document.createElement('div');
+                div.className = 'aspect-square rounded flex items-center justify-center text-xs font-mono relative';
+                div.style.background = `rgb(${p.r},${p.g},${p.b})`;
+                div.style.color = p.brightness > 128 ? 'rgba(0,0,0,0.8)' : 'rgba(255,255,255,0.9)';
+                div.innerHTML = `<span>${p.brightness}</span>`;
+                if (p.k !== 0) {
+                    div.style.boxShadow = 'inset 0 0 0 2px #3b82f6';
+                    const badge = document.createElement('div');
+                    badge.className = 'absolute bottom-0 right-0 text-[9px] bg-blue-500 text-white px-1 rounded-tl';
+                    badge.textContent = p.k;
+                    div.appendChild(badge);
+                }
+                container.appendChild(div);
+            });
+            
+            // Kernel display
+            const kContainer = document.getElementById('kernelDisplay');
+            kContainer.innerHTML = '';
+            currentKernel.forEach(k => {
+                const div = document.createElement('div');
+                div.className = 'aspect-square rounded flex items-center justify-center text-sm font-mono bg-gray-700 text-cyan-400 border border-gray-600';
+                div.textContent = k;
+                kContainer.appendChild(div);
+            });
+            
+            // Values
+            document.getElementById('calcPos').textContent = `${x},${y}`;
+            document.getElementById('sumR').textContent = sumR.toFixed(1);
+            document.getElementById('sumG').textContent = sumG.toFixed(1);
+            document.getElementById('sumB').textContent = sumB.toFixed(1);
+            document.getElementById('dispDivisor').textContent = currentDivisor;
+            document.getElementById('dispBias').textContent = currentBias;
+            
+            document.getElementById('outR').textContent = Math.round(outR);
+            document.getElementById('outG').textContent = Math.round(outG);
+            document.getElementById('outB').textContent = Math.round(outB);
+            
+            const outPixel = document.getElementById('outputPixel');
+            outPixel.style.backgroundColor = `rgb(${outR},${outG},${outB})`;
+            document.getElementById('outputValue').textContent = Math.round((outR+outG+outB)/3);
+        }
+
+        function downloadResult() {
+            const link = document.createElement('a');
+            link.download = 'convolution-result.png';
+            link.href = document.getElementById('resultCanvas').toDataURL();
+            link.click();
+        }
+
+        // Init
+        updateKernelSum();
+    </script>
+</body>
+</html>
