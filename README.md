@@ -35,7 +35,7 @@ An interactive web-based convolution kernel simulator for image processing educa
 
 ### 📐 Mathematical Formula
 $$
-Output(x,y) = \frac{\sum [ Input(x+i, y+j) × Kernel(i,j) ]}{Divisor} + Bias \\
+Output(x,y) = \frac{\sum [ Input(x+i, y+j) × Kernel(i,j) ]}{Divisor} + Bias \ ,
 where\  i,j ∈ {-1, 0, 1}
 $$
 
@@ -120,7 +120,7 @@ This tool is designed for:
 
 ### 📐 数学公式
 $$
-输出(x,y) = \frac{\sum[ 输入(x+i, y+j) × 卷积核(i,j) ]}{除数} + 偏移 \\
+输出(x,y) = \frac{\sum[ 输入(x+i, y+j) × 卷积核(i,j) ]}{除数} + 偏移 \ ,
 其中\ i,j ∈ {-1, 0, 1}
 $$
 
